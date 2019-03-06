@@ -1,28 +1,20 @@
 import torch.nn as nn
 import torch.nn.functional as F
+import torch.utils.model_zoo as model_zoo
 from base import BaseModel
-
 
 # Heavily influenced by:
 # https://towardsdatascience.com/understanding-and-coding-a-resnet-in-keras-446d7ff84d33
 # http://www.pabloruizruiz10.com/resources/CNNs/ResNet-PyTorch.html
 # https://github.com/pytorch/vision/blob/master/torchvision/models/resnet.py
 
-# Standard implementation of 224x224 -> 112x112 layer
-class Layer0(nn.Module):
-    def __init__(self):
-        super(Layer0, self).__init__()
-        self.conv1 = nn.Conv2d(3, 64, kernel_size=7, stride=2, padding=3, bias=False)
-        self.bn1 = nn.BatchNorm2d(64)
-        self.relu = nn.ReLU(inplace=True)
-        self.maxpool = nn.MaxPool2d(kernel_size=3, stride=2, padding=1)
-
-    def forward(self, x):
-        out = self.conv1(x)
-        out = self.bn1(out)
-        out = self.relu(out)
-
-        return self.maxpool(out)
+model_urls = {
+    'resnet18': 'https://download.pytorch.org/models/resnet18-5c106cde.pth',
+    'resnet34': 'https://download.pytorch.org/models/resnet34-333f7ec4.pth',
+    'resnet50': 'https://download.pytorch.org/models/resnet50-19c8e357.pth',
+    'resnet101': 'https://download.pytorch.org/models/resnet101-5d3b4d8f.pth',
+    'resnet152': 'https://download.pytorch.org/models/resnet152-b121ed2d.pth',
+}
 
 
 def conv3x3(in_planes, out_planes, stride=1):
@@ -106,16 +98,22 @@ class Botlleneck(nn.Module):
 
 class ResNet(nn.Module):
 
-    def __init__(self, block, layer0, layers, num_classes=10):
+    def __init__(self, block, layers):
         super(ResNet, self).__init__()
+        self.conv1 = nn.Conv2d(3, 64, kernel_size=7, stride=2, padding=3, bias=False)
+        self.bn1 = nn.BatchNorm2d(64)
+        self.relu = nn.ReLU(inplace=True)
+        self.maxpool = nn.MaxPool2d(kernel_size=3, stride=2, padding=1)
+
         self.inplanes = 64
-        self.layer0 = layer0
+        self.expansion = block.expansion
+
         self.layer1 = self._make_layer(block, 64, layers[0])
         self.layer2 = self._make_layer(block, 128, layers[1], stride=2)
         self.layer3 = self._make_layer(block, 256, layers[2], stride=2)
         self.layer4 = self._make_layer(block, 512, layers[3], stride=2)
         self.avgpool = nn.AdaptiveAvgPool2d((1, 1))
-        self.fc = nn.Linear(512 * block.expansion, num_classes)
+        self.fc = nn.Linear(512 * block.expansion, 1000)
 
     def _make_layer(self, block, planes, blocks, stride=1):
         downsample = None
@@ -133,7 +131,10 @@ class ResNet(nn.Module):
         return nn.Sequential(*layers)
 
     def forward(self, x):
-        out = self.layer0(x)
+        out = self.conv1(x)
+        out = self.bn1(out)
+        out = self.relu(out)
+        out = self.maxpool(out)
 
         out = self.layer1(out)
         out = self.layer2(out)
@@ -146,23 +147,25 @@ class ResNet(nn.Module):
         return self.fc(out)
 
 
-class Layer0Mnist(nn.Module):
-    def __init__(self):
-        super(Layer0Mnist, self).__init__()
+class ResNetMnist(ResNet):
+    def __init__(self, block, layers):
+        super(ResNetMnist, self).__init__(block, layers)
+
+    def adopt_mnist(self):
         self.conv1 = nn.Conv2d(1, 64, kernel_size=3, stride=1, padding=1, bias=False)
         self.bn1 = nn.BatchNorm2d(64)
         self.relu = nn.ReLU(inplace=True)
+        self.maxpool = nn.Sequential()  # aka Identity
 
-    def forward(self, x):
-        out = self.conv1(x)
-        out = self.bn1(out)
-        out = self.relu(out)
-        return out
+        self.fc = nn.Linear(512 * self.expansion, 10)
+
 
 class Resnet18MnistModel(BaseModel):
-    def __init__(self, num_classes=10):
+    def __init__(self):
         super(Resnet18MnistModel, self).__init__()
-        self.resnet = ResNet(BasicBlock, Layer0Mnist(), [2, 2, 2, 2], num_classes)
+        self.resnet = ResNetMnist(BasicBlock, [2, 2, 2, 2])
+        self.resnet.load_state_dict(model_zoo.load_url(model_urls['resnet18']))
+        self.resnet.adopt_mnist()
 
     def forward(self, x):
         x = self.resnet(x)
@@ -170,9 +173,11 @@ class Resnet18MnistModel(BaseModel):
 
 
 class Resnet34MnistModel(BaseModel):
-    def __init__(self, num_classes=10):
+    def __init__(self):
         super(Resnet34MnistModel, self).__init__()
-        self.resnet = ResNet(BasicBlock, Layer0Mnist(), [3, 4, 6, 3], num_classes)
+        self.resnet = ResNetMnist(BasicBlock, [3, 4, 6, 3])
+        self.resnet.load_state_dict(model_zoo.load_url(model_urls['resnet34']))
+        self.resnet.adopt_mnist()
 
     def forward(self, x):
         x = self.resnet(x)

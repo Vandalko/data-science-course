@@ -5,7 +5,7 @@ from tqdm import tqdm
 import data_loader.data_loaders as module_data
 import model.loss as module_loss
 import model.metric as module_metric
-import model.model as module_arch
+import model.resnet as module_arch
 from train import get_instance
 
 
@@ -13,7 +13,7 @@ def main(config, resume):
     # setup data_loader instances
     data_loader = getattr(module_data, config['data_loader']['type'])(
         config['data_loader']['args']['data_dir'],
-        batch_size=512,
+        batch_size=config['data_loader']['args']['batch_size'],
         shuffle=False,
         validation_split=0.0,
         training=False,
