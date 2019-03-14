@@ -1,3 +1,4 @@
+import torch
 import torch.nn as nn
 import torch.nn.functional as F
 import torch.utils.model_zoo as model_zoo
@@ -147,37 +148,35 @@ class ResNet(nn.Module):
         return self.fc(out)
 
 
-class ResNetMnist(ResNet):
+class ResNetRGBY(ResNet):
     def __init__(self, block, layers):
-        super(ResNetMnist, self).__init__(block, layers)
+        super(ResNetRGBY, self).__init__(block, layers)
 
-    def adopt_mnist(self):
-        self.conv1 = nn.Conv2d(1, 64, kernel_size=3, stride=1, padding=1, bias=False)
-        self.bn1 = nn.BatchNorm2d(64)
-        self.relu = nn.ReLU(inplace=True)
-        self.maxpool = nn.Sequential()  # aka Identity
-
-        self.fc = nn.Linear(512 * self.expansion, 10)
+    def adopt(self):
+        w = self.conv1.weight
+        self.conv1 = nn.Conv2d(4, 64, kernel_size=7, stride=2, padding=3, bias=False)
+        self.conv1.weight = nn.Parameter(torch.cat((w, 0.5 * (w[:, :1, :, :] + w[:, 2:, :, :])), dim=1))
+        self.fc = nn.Linear(512 * self.expansion, 28)
 
 
-class Resnet18MnistModel(BaseModel):
+class Resnet18Model(BaseModel):
     def __init__(self):
-        super(Resnet18MnistModel, self).__init__()
-        self.resnet = ResNetMnist(BasicBlock, [2, 2, 2, 2])
+        super(Resnet18Model, self).__init__()
+        self.resnet = ResNetRGBY(BasicBlock, [2, 2, 2, 2])
         self.resnet.load_state_dict(model_zoo.load_url(model_urls['resnet18']))
-        self.resnet.adopt_mnist()
+        self.resnet.adopt()
 
     def forward(self, x):
         x = self.resnet(x)
         return F.log_softmax(x, dim=1)
 
 
-class Resnet34MnistModel(BaseModel):
+class Resnet34Model(BaseModel):
     def __init__(self):
-        super(Resnet34MnistModel, self).__init__()
-        self.resnet = ResNetMnist(BasicBlock, [3, 4, 6, 3])
+        super(Resnet34Model, self).__init__()
+        self.resnet = ResNetRGBY(BasicBlock, [3, 4, 6, 3])
         self.resnet.load_state_dict(model_zoo.load_url(model_urls['resnet34']))
-        self.resnet.adopt_mnist()
+        self.resnet.adopt()
 
     def forward(self, x):
         x = self.resnet(x)
