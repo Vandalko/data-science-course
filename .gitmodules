@@ -1,0 +1,6 @@
+[submodule "ds-ua-workshop"]
+	path = ds-ua-workshop
+	url = https://gitlab.com/strltsva/ds-ua-workshop.git
+[submodule "DSU_workshop_evolution"]
+	path = DSU_workshop_evolution
+	url = https://github.com/crazyleg/DSU_workshop_evolution
