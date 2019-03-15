@@ -156,19 +156,11 @@ class ResNetRGBY(ResNet):
         w = self.conv1.weight
         self.conv1 = nn.Conv2d(4, 64, kernel_size=7, stride=2, padding=3, bias=False)
         self.conv1.weight = nn.Parameter(torch.cat((w, 0.5 * (w[:, :1, :, :] + w[:, 2:, :, :])), dim=1))
-        self.fc = nn.Linear(512 * self.expansion, 28)
-
-
-class Resnet18Model(BaseModel):
-    def __init__(self):
-        super(Resnet18Model, self).__init__()
-        self.resnet = ResNetRGBY(BasicBlock, [2, 2, 2, 2])
-        self.resnet.load_state_dict(model_zoo.load_url(model_urls['resnet18']))
-        self.resnet.adopt()
-
-    def forward(self, x):
-        x = self.resnet(x)
-        return F.log_softmax(x, dim=1)
+        self.fc = nn.Sequential(
+            nn.BatchNorm1d(512),
+            nn.Dropout(0.2),
+            nn.Linear(512 * self.expansion, 28),
+        )
 
 
 class Resnet34Model(BaseModel):
@@ -179,5 +171,4 @@ class Resnet34Model(BaseModel):
         self.resnet.adopt()
 
     def forward(self, x):
-        x = self.resnet(x)
-        return F.log_softmax(x, dim=1)
+        return self.resnet(x)

@@ -29,7 +29,7 @@ class ProteinDataLoader(BaseDataLoader):
             images_df = pd.read_csv(data_dir + '/train.csv')
         else:
             images_df = pd.read_csv(data_dir + '/sample_submission.csv')
-        self.dataset = ProteinDataset(images_df, data_dir, training)
+        self.dataset = ProteinDataset(images_df, data_dir, not training, training)
         super(ProteinDataLoader, self).__init__(self.dataset, batch_size, shuffle, validation_split, num_workers)
 
 class ProteinDataset(Dataset):
