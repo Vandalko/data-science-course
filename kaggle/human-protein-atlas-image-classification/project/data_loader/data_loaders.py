@@ -2,43 +2,101 @@ from torchvision import datasets, transforms
 from base import BaseDataLoader
 from PIL import Image
 import numpy as np
-from torch.utils.data import Dataset
+from torch.utils.data import Dataset, DataLoader
+from torch.utils.data.sampler import SubsetRandomSampler
 from torchvision import transforms as T
 from imgaug import augmenters as iaa
 import pandas as pd
 import pathlib
 
 
-class MnistDataLoader(BaseDataLoader):
-    """
-    MNIST data loading demo using BaseDataLoader
-    """
-    def __init__(self, data_dir, batch_size, shuffle, validation_split, num_workers, training=True):
-        trsfm = transforms.Compose([
-            transforms.ToTensor(),
-            transforms.Normalize((0.1307,), (0.3081,))
-            ])
-        self.data_dir = data_dir
-        self.dataset = datasets.MNIST(self.data_dir, train=training, download=True, transform=trsfm)
-        super(MnistDataLoader, self).__init__(self.dataset, batch_size, shuffle, validation_split, num_workers)
-
-
 class ProteinDataLoader(BaseDataLoader):
-    def __init__(self, data_dir, batch_size, shuffle, validation_split, num_workers, training=True):
+    def __init__(self, data_dir, batch_size, shuffle, validation_split, num_workers, num_classes, training=True):
         if training:
-            images_df = pd.read_csv(data_dir + '/train.csv')
+            self.images_df = pd.read_csv(data_dir + '/train.csv')
         else:
-            images_df = pd.read_csv(data_dir + '/sample_submission.csv')
-        self.dataset = ProteinDataset(images_df, data_dir, not training, training)
+            self.images_df = pd.read_csv(data_dir + '/sample_submission.csv')
+        self.num_classes = num_classes
+        self.dataset = ProteinDataset(self.images_df, data_dir, num_classes, not training, training)
+        self.n_samples = len(self.dataset)
         super(ProteinDataLoader, self).__init__(self.dataset, batch_size, shuffle, validation_split, num_workers)
 
+        # def _split_sampler(self, split):
+        #     if split == 0.0:
+        #         return None, None
+        #
+        #     weights = np.zeros(self.num_classes)
+        #     dataloader = DataLoader(self.dataset, batch_size=0, shuffle=False, num_workers=0)
+        #     for _, (data, _) in enumerate(dataloader):
+        #         weights = weights + data
+        #     del dataloader
+        #     weights = (weights / self.n_samples - 1) * -1
+        #
+        #     idx_weighted = np.zeros(self.n_samples)
+        #     dataloader = DataLoader(self.dataset, batch_size=0, shuffle=False, num_workers=0)
+        #     for idx, (data, _) in enumerate(dataloader):
+        #         for idx_class, idx_present in enumerate(dataloader):
+        #             if idx_present == 1:
+        #                 idx_weighted[idx] += weights[idx_class]
+        #     del dataloader
+        #
+        #     idx_full = np.arange(self.n_samples)
+        #
+        #     np.random.seed(0)
+        #     np.random.shuffle(idx_full)
+        #
+        #     len_valid = int(self.n_samples * split)
+        #
+        #     valid_idx = idx_full[0:len_valid]
+        #     train_idx = np.delete(idx_full, np.arange(0, len_valid))
+        #
+        #     train_sampler = SubsetRandomSampler(train_idx)
+        #     valid_sampler = SubsetRandomSampler(valid_idx)
+        #
+        #     # turn off shuffle option which is mutually exclusive with sampler
+        #     self.shuffle = False
+        #     self.n_samples = len(train_idx)
+        #
+        #     return train_sampler, valid_sampler
+
+    def _split_sampler(self, split):
+        if split == 0.0:
+            return None, None
+
+        validation_split = []
+        for idx, (value, count) in enumerate(self.images_df['Target'].value_counts().to_dict().items()):
+            for _ in range(max(round(split * count), 1)):
+                validation_split.append(value)
+
+        validation_split_idx = []
+        for idx, value in enumerate(self.images_df['Target']):
+            try:
+                validation_split.remove(value)
+                validation_split_idx.append(idx)
+            except:
+                pass
+
+        idx_full = np.arange(self.n_samples)
+        valid_idx = np.array(validation_split_idx)
+        train_idx = np.delete(idx_full, valid_idx)
+
+        train_sampler = SubsetRandomSampler(train_idx)
+        valid_sampler = SubsetRandomSampler(valid_idx)
+
+        # turn off shuffle option which is mutually exclusive with sampler
+        self.shuffle = False
+        self.n_samples = len(train_idx)
+
+        return train_sampler, valid_sampler
+
 class ProteinDataset(Dataset):
-    def __init__(self, images_df, base_path, augument=True, training=True):
+    def __init__(self, images_df, base_path, num_classes, augument=True, training=True):
         base_path = pathlib.Path(base_path)
         if training:
             base_path = base_path / "train"
         else:
             base_path = base_path / "test"
+        self.num_classes = num_classes
         self.images_df = images_df.copy()
         self.augument = augument
         self.images_df.Id = self.images_df.Id.apply(lambda x: base_path / x)
@@ -50,14 +108,17 @@ class ProteinDataset(Dataset):
     def __getitem__(self, index):
         X = self.read_images(index)
         if self.training:
-            labels = np.array(list(map(int, self.images_df.iloc[index].Target.split(' '))))
-            y = np.eye(28, dtype=np.float)[labels].sum(axis=0)
+            labels = self.read_labels(index)
+            y = np.eye(self.num_classes, dtype=np.float)[labels].sum(axis=0)
         else:
             y = str(self.images_df.iloc[index].Id.absolute())
         if self.augument:
             X = self.augumentor(X)
         X = T.Compose([T.ToPILImage(), T.ToTensor()])(X)
         return X.float(), y
+
+    def read_labels(self, index):
+        return np.array(list(map(int, self.images_df.iloc[index].Target.split(' '))))
 
     def read_images(self, index):
         row = self.images_df.iloc[index]

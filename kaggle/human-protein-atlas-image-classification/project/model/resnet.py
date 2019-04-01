@@ -149,8 +149,9 @@ class ResNet(nn.Module):
 
 
 class ResNetRGBY(ResNet):
-    def __init__(self, block, layers):
+    def __init__(self, block, layers, num_classes=28):
         super(ResNetRGBY, self).__init__(block, layers)
+        self.num_classes = num_classes
 
     def adopt(self):
         w = self.conv1.weight
@@ -159,14 +160,14 @@ class ResNetRGBY(ResNet):
         self.fc = nn.Sequential(
             nn.BatchNorm1d(512),
             nn.Dropout(0.2),
-            nn.Linear(512 * self.expansion, 28),
+            nn.Linear(512 * self.expansion, self.num_classes),
         )
 
 
 class Resnet34Model(BaseModel):
-    def __init__(self):
+    def __init__(self, num_classes=28):
         super(Resnet34Model, self).__init__()
-        self.resnet = ResNetRGBY(BasicBlock, [3, 4, 6, 3])
+        self.resnet = ResNetRGBY(BasicBlock, [3, 4, 6, 3], num_classes)
         self.resnet.load_state_dict(model_zoo.load_url(model_urls['resnet34']))
         self.resnet.adopt()
 
