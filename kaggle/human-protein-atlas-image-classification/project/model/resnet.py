@@ -152,16 +152,36 @@ class ResNetRGBY(ResNet):
     def __init__(self, block, layers, num_classes=28):
         super(ResNetRGBY, self).__init__(block, layers)
         self.num_classes = num_classes
+        self.input_layer = None
 
     def adopt(self):
         w = self.conv1.weight
         self.conv1 = nn.Conv2d(4, 64, kernel_size=7, stride=2, padding=3, bias=False)
         self.conv1.weight = nn.Parameter(torch.cat((w, 0.5 * (w[:, :1, :, :] + w[:, 2:, :, :])), dim=1))
+        self.input_layer = nn.Sequential(
+            self.conv1,
+            self.bn1,
+            self.relu,
+            self.maxpool
+        )
         self.fc = nn.Sequential(
             nn.BatchNorm1d(512),
             nn.Dropout(0.2),
             nn.Linear(512 * self.expansion, self.num_classes),
         )
+
+    def forward(self, x):
+        out = self.input_layer(x)
+
+        out = self.layer1(out)
+        out = self.layer2(out)
+        out = self.layer3(out)
+        out = self.layer4(out)
+
+        out = self.avgpool(out)
+        out = out.view(out.size(0), -1)
+
+        return self.fc(out)
 
 
 class Resnet34Model(BaseModel):
@@ -173,3 +193,13 @@ class Resnet34Model(BaseModel):
 
     def forward(self, x):
         return self.resnet(x)
+
+    def trainable_parameters_groups(self):
+        return [
+            {'params': self.input_layer.parameters(), 'lr': 1e-5},
+            {'params': self.layer1.parameters(), 'lr': 1e-4},
+            {'params': self.layer2.parameters(), 'lr': 1e-4},
+            {'params': self.layer3.parameters(), 'lr': 1e-3},
+            {'params': self.layer4.parameters(), 'lr': 1e-3},
+            {'params': self.fc.parameters(), 'lr': 1e-2}
+        ]

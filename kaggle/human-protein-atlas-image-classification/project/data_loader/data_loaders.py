@@ -11,53 +11,12 @@ import pathlib
 
 
 class ProteinDataLoader(BaseDataLoader):
-    def __init__(self, data_dir, batch_size, shuffle, validation_split, num_workers, num_classes, training=True):
-        if training:
-            self.images_df = pd.read_csv(data_dir + '/train.csv')
-        else:
-            self.images_df = pd.read_csv(data_dir + '/sample_submission.csv')
+    def __init__(self, data_dir, csv_path, batch_size, shuffle, validation_split, num_workers, num_classes, img_size, training=True):
+        self.images_df = pd.read_csv(csv_path)
         self.num_classes = num_classes
-        self.dataset = ProteinDataset(self.images_df, data_dir, num_classes, not training, training)
+        self.dataset = ProteinDataset(self.images_df, data_dir, num_classes, img_size, not training, training)
         self.n_samples = len(self.dataset)
         super(ProteinDataLoader, self).__init__(self.dataset, batch_size, shuffle, validation_split, num_workers)
-
-        # def _split_sampler(self, split):
-        #     if split == 0.0:
-        #         return None, None
-        #
-        #     weights = np.zeros(self.num_classes)
-        #     dataloader = DataLoader(self.dataset, batch_size=0, shuffle=False, num_workers=0)
-        #     for _, (data, _) in enumerate(dataloader):
-        #         weights = weights + data
-        #     del dataloader
-        #     weights = (weights / self.n_samples - 1) * -1
-        #
-        #     idx_weighted = np.zeros(self.n_samples)
-        #     dataloader = DataLoader(self.dataset, batch_size=0, shuffle=False, num_workers=0)
-        #     for idx, (data, _) in enumerate(dataloader):
-        #         for idx_class, idx_present in enumerate(dataloader):
-        #             if idx_present == 1:
-        #                 idx_weighted[idx] += weights[idx_class]
-        #     del dataloader
-        #
-        #     idx_full = np.arange(self.n_samples)
-        #
-        #     np.random.seed(0)
-        #     np.random.shuffle(idx_full)
-        #
-        #     len_valid = int(self.n_samples * split)
-        #
-        #     valid_idx = idx_full[0:len_valid]
-        #     train_idx = np.delete(idx_full, np.arange(0, len_valid))
-        #
-        #     train_sampler = SubsetRandomSampler(train_idx)
-        #     valid_sampler = SubsetRandomSampler(valid_idx)
-        #
-        #     # turn off shuffle option which is mutually exclusive with sampler
-        #     self.shuffle = False
-        #     self.n_samples = len(train_idx)
-        #
-        #     return train_sampler, valid_sampler
 
     def _split_sampler(self, split):
         if split == 0.0:
@@ -90,12 +49,9 @@ class ProteinDataLoader(BaseDataLoader):
         return train_sampler, valid_sampler
 
 class ProteinDataset(Dataset):
-    def __init__(self, images_df, base_path, num_classes, augument=True, training=True):
+    def __init__(self, images_df, base_path, num_classes, img_size, augument=True, training=True):
         base_path = pathlib.Path(base_path)
-        if training:
-            base_path = base_path / "train"
-        else:
-            base_path = base_path / "test"
+        self.img_size = img_size
         self.num_classes = num_classes
         self.images_df = images_df.copy()
         self.augument = augument
@@ -123,7 +79,7 @@ class ProteinDataset(Dataset):
     def read_images(self, index):
         row = self.images_df.iloc[index]
         filename = str(row.Id.absolute())
-        images = np.zeros(shape=(512, 512, 4))
+        images = np.zeros(shape=(self.img_size, self.img_size, 4))
         r = np.array(Image.open(filename + "_red.png"))
         g = np.array(Image.open(filename + "_green.png"))
         b = np.array(Image.open(filename + "_blue.png"))
