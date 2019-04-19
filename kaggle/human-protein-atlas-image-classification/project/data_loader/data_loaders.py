@@ -38,7 +38,7 @@ class ProteinDataLoader(BaseDataLoader):
                 validation_split.remove(value)
                 validation_split_idx.append(idx)
             except:
-                for _ in range(max([m for m in multi[value.split(' ')]])):
+                for _ in range(max([multi[int(v)] for v in value.split(' ')])):
                     train_split_idx.append(idx)
 
         valid_idx = np.array(validation_split_idx)
