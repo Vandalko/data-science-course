@@ -22,22 +22,27 @@ class ProteinDataLoader(BaseDataLoader):
         if split == 0.0:
             return None, None
 
+        # Dumb stratification.
         validation_split = []
         for idx, (value, count) in enumerate(self.images_df['Target'].value_counts().to_dict().items()):
-            for _ in range(max(round(split * count), 1)):
-                validation_split.append(value)
+            if count > 1:
+                for _ in range(max(round(split * count), 1)):
+                    validation_split.append(value)
 
+        # Oversampling.
+        multi = [1, 1, 1, 1, 1, 1, 1, 1, 4, 4, 4, 1, 1, 1, 1, 4, 1, 1, 1, 1, 2, 1, 1, 1, 1, 1, 1, 4]
         validation_split_idx = []
+        train_split_idx = []
         for idx, value in enumerate(self.images_df['Target']):
             try:
                 validation_split.remove(value)
                 validation_split_idx.append(idx)
             except:
-                pass
+                for _ in range(max([m for m in multi[value.split(' ')]])):
+                    train_split_idx.append(idx)
 
-        idx_full = np.arange(self.n_samples)
         valid_idx = np.array(validation_split_idx)
-        train_idx = np.delete(idx_full, valid_idx)
+        train_idx = np.array(train_split_idx)
 
         train_sampler = SubsetRandomSampler(train_idx)
         valid_sampler = SubsetRandomSampler(valid_idx)
