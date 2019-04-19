@@ -1,7 +1,7 @@
 import torch
 import torch.nn as nn
-import torch.nn.functional as F
 import torch.utils.model_zoo as model_zoo
+import torchvision.models as models
 from base import BaseModel
 
 # Heavily influenced by:
@@ -195,11 +195,20 @@ class Resnet34Model(BaseModel):
         return self.resnet(x)
 
     def trainable_parameters_groups(self):
-        return [
-            {'params': self.input_layer.parameters(), 'lr': 1e-5},
-            {'params': self.layer1.parameters(), 'lr': 1e-4},
-            {'params': self.layer2.parameters(), 'lr': 1e-4},
-            {'params': self.layer3.parameters(), 'lr': 1e-3},
-            {'params': self.layer4.parameters(), 'lr': 1e-3},
-            {'params': self.fc.parameters(), 'lr': 1e-2}
-        ]
+        return self.parameters()
+
+class Resnet50Model(BaseModel):
+    def __init__(self, num_classes=28, pretrained=False):
+        super(Resnet50Model, self).__init__()
+        self.resnet = models.resnet50(pretrained=pretrained)
+        conv1 = nn.Conv2d(4, 64, kernel_size=7, stride=2, padding=3, bias=False)
+        if pretrained:
+            w = self.resnet.conv1.weight
+            conv1.weight = nn.Parameter(torch.cat((w, 0.5 * (w[:, :1, :, :] + w[:, 2:, :, :])), dim=1))
+        self.resnet.conv1 = conv1
+        self.resnet.fc = nn.Sequential(
+            nn.Linear(512 * 4, num_classes),
+        )
+
+    def forward(self, x):
+        return self.resnet(x)
